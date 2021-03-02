@@ -1,0 +1,74 @@
+name: Build and upload to PyPI
+
+on: [push, pull_request]
+
+env:
+  QPDF_RELEASE: "https://github.com/qpdf/qpdf/releases/download/release-qpdf-10.2.0/qpdf-10.2.0.tar.gz"
+  JPEG_RELEASE: "https://www.ijg.org/files/jpegsrc.v9d.tar.gz"
+  ZLIB_RELEASE: "https://www.zlib.net/zlib-1.2.11.tar.gz"
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    env:
+      CIBW_SKIP: "cp27-* cp35-* pp2* pp36-win32* pp36-manylinux* pp37-win32* pp37-manylinux*"
+      CIBW_TEST_COMMAND: "pytest -nauto {project}/tests"
+      CIBW_TEST_REQUIRES: "-r requirements/test.txt"
+      CIBW_BEFORE_ALL: "bash {project}/azure-pipelines/linux-build-deps.bash {project}"
+    strategy:
+      matrix:
+        os: [ubuntu-20.04] #[ubuntu-20.04, windows-2019, macos-10.15]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        name: Install Python
+        with:
+          python-version: "3.8"
+
+      - name: Download dependencies
+        run: bash azure-pipelines/linux-download-deps.bash
+
+      - name: Build wheels
+        uses: joerick/cibuildwheel@v1.10.0
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
+
+  # build_sdist:
+  #   name: Build source distribution
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+
+  #     - uses: actions/setup-python@v2
+  #       name: Install Python
+  #       with:
+  #         python-version: "3.8"
+
+  #     - name: Build sdist
+  #       run: python setup.py sdist
+
+  #     - uses: actions/upload-artifact@v2
+  #       with:
+  #         path: dist/*.tar.gz
+
+  # upload_pypi:
+  #   needs: [build_wheels, build_sdist]
+  #   runs-on: ubuntu-latest
+  #   # upload to PyPI on every tag starting with 'v'
+  #   if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+  #   steps:
+  #     - uses: actions/download-artifact@v2
+  #       with:
+  #         name: artifact
+  #         path: dist
+
+  #     - uses: pypa/gh-action-pypi-publish@master
+  #       with:
+  #         user: __token__
+  #         password: ${{ secrets.pypi_password }}
+  #         # To test: repository_url: https://test.pypi.org/legacy/
